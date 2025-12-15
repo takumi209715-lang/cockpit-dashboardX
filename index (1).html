@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Cockpit Dashboard v2.0</title>
+    <meta name="viewport" content="width=1280, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Colors */
+            --bg-core: #020203;
+            --c-cyan: #00f0ff;
+            --c-cyan-dim: rgba(0, 240, 255, 0.15);
+            --c-pink: #ff0055;
+            --c-warn: #ffcc00;
+            --c-text-main: #e0f0ff;
+            --c-text-muted: #647b8c;
+            /* Layout */
+            --w: 1280px;
+            --h: 800px;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none; /* タッチ操作での選択防止 */
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            background: #000;
+            color: var(--c-text-main);
+            font-family: 'JetBrains Mono', monospace;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- SCALING WRAPPER --- */
+        #scaler {
+            width: var(--w);
+            height: var(--h);
+            position: relative;
+            transform-origin: center center;
+        }
+
+        /* --- MAIN FRAME (COCKPIT) --- */
+        .cockpit {
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 50%, #0d1219 0%, #000000 120%);
+            position: relative;
+            border: 2px solid #333;
+            overflow: hidden;
+            display: grid;
+            grid-template-rows: 90px 1fr 160px; /* Header / Main / Footer */
+            padding: 20px;
+            gap: 15px;
+        }
+
+            /* Background Effects */
+            .cockpit::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+                z-index: 0;
+                background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+                background-size: 100% 4px, 6px 100%;
+            }
+
+            .cockpit::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+                z-index: 0;
+                background: radial-gradient(circle, transparent 60%, rgba(0,0,0,0.8) 100%);
+            }
+
+        /* --- COMMON HUD ELEMENTS --- */
+        .hud-panel {
+            background: rgba(10, 20, 30, 0.6);
+            border: 1px solid var(--c-cyan-dim);
+            backdrop-filter: blur(4px);
+            position: relative;
+            z-index: 1;
+        }
+
+        .corner-cut {
+            clip-path: polygon( 15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px );
+        }
+
+        /* --- HEADER BAR --- */
+        .top-bar {
+            display: grid;
+            grid-template-columns: 320px 1fr 320px;
+            align-items: center;
+            border-bottom: 1px solid var(--c-cyan-dim);
+            padding: 0 20px;
+            background: rgba(0, 240, 255, 0.03);
+        }
+
+        /* Clock */
+        .sys-time {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .clock-main {
+            font-family: 'Orbitron';
+            font-size: 48px;
+            line-height: 1;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .clock-sec {
+            font-size: 24px;
+            color: var(--c-cyan);
+        }
+
+        .clock-date {
+            color: var(--c-cyan);
+            font-size: 14px;
+            letter-spacing: 0.2em;
+            margin-top: 4px;
+        }
+
+        /* Battery Center */
+        .sys-center {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            border-left: 1px solid var(--c-cyan-dim);
+            border-right: 1px solid var(--c-cyan-dim);
+        }
+
+        .batt-label {
+            font-size: 10px;
+            color: var(--c-text-muted);
+            letter-spacing: 0.2em;
+            margin-bottom: 4px;
+        }
+
+        .batt-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Orbitron';
+            font-size: 24px;
+            color: var(--c-cyan);
+        }
+
+        .batt-icon {
+            width: 40px;
+            height: 20px;
+            border: 2px solid var(--c-cyan);
+            border-radius: 3px;
+            position: relative;
+            padding: 2px;
+        }
+
+            .batt-icon::after {
+                content: '';
+                position: absolute;
+                right: -5px;
+                top: 4px;
+                width: 3px;
+                height: 8px;
+                background: var(--c-cyan);
+            }
+
+        .batt-fill {
+            height: 100%;
+            background: var(--c-cyan);
+            width: 0%;
+            transition: width 0.5s ease;
+            box-shadow: 0 0 5px var(--c-cyan);
+        }
+        /* Charging Animation */
+        .charging .batt-fill {
+            background: linear-gradient(90deg, var(--c-cyan), #fff);
+            animation: charge-pulse 0.8s infinite alternate;
+        }
+
+        @keyframes charge-pulse {
+            0% {
+                filter: brightness(1);
+            }
+
+            100% {
+                filter: brightness(1.5);
+                box-shadow: 0 0 15px var(--c-cyan);
+            }
+        }
+
+        /* Weather */
+        .sys-env {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 20px;
+        }
+
+        .env-data {
+            text-align: right;
+        }
+
+        .env-temp {
+            font-family: 'Orbitron';
+            font-size: 36px;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .env-loc {
+            color: var(--c-text-muted);
+            font-size: 12px;
+            letter-spacing: 0.1em;
+        }
+
+        .env-icon svg {
+            width: 48px;
+            height: 48px;
+            fill: none;
+            stroke: var(--c-cyan);
+            filter: drop-shadow(0 0 5px var(--c-cyan));
+        }
+
+        /* --- MAIN GRID --- */
+        .main-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            height: 100%;
+        }
+
+        .monitor-card {
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden; /* For swipe clipping */
+        }
+
+        .card-inner-padding {
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .m-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 10px;
+            border-bottom: 1px dashed var(--c-cyan-dim);
+            padding-bottom: 8px;
+            flex-shrink: 0;
+        }
+
+        .m-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .m-code {
+            font-family: 'Orbitron';
+            color: var(--c-cyan);
+            font-size: 12px;
+        }
+
+        /* --- SWIPE CONTAINER GENERIC --- */
+        .swipe-track {
+            display: flex;
+            height: 100%;
+            width: 100%;
+            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .swipe-slide {
+            min-width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- 1. CHRONO (Stopwatch/Timer) --- */
+        .chrono-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .gauge-svg {
+            width: 220px;
+            height: 220px;
+            transform: rotate(-90deg);
+        }
+
+        .gauge-bg {
+            fill: none;
+            stroke: rgba(255,255,255,0.1);
+            stroke-width: 6;
+        }
+
+        .gauge-bar {
+            fill: none;
+            stroke: var(--c-cyan);
+            stroke-width: 8;
+            stroke-linecap: round;
+            stroke-dasharray: 628; /* 2 * PI * 100 */
+            stroke-dashoffset: 628;
+            transition: stroke-dashoffset 0.1s linear;
+            filter: drop-shadow(0 0 8px var(--c-cyan));
+        }
+
+        .chrono-digital {
+            position: absolute;
+            font-family: 'Orbitron';
+            font-size: 38px;
+            color: #fff;
+            text-shadow: 0 0 10px var(--c-cyan);
+            z-index: 2;
+            cursor: pointer;
+        }
+
+        .chrono-ctrl {
+            margin-top: 15px;
+            display: flex;
+            gap: 15px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .c-btn {
+            background: rgba(0,240,255,0.1);
+            border: 1px solid var(--c-cyan);
+            color: var(--c-cyan);
+            font-family: 'Orbitron';
+            padding: 8px 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px);
+        }
+
+            .c-btn:active {
+                background: var(--c-cyan);
+                color: #000;
+            }
+
+        /* Timer Setup Overlay */
+        .timer-setup {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+            .timer-setup.active {
+                opacity: 1;
+                pointer-events: auto;
+            }
+
+        .ts-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Orbitron';
+            font-size: 32px;
+            color: #fff;
+        }
+
+        .ts-btn {
+            background: none;
+            border: 1px solid var(--c-text-muted);
+            color: var(--c-cyan);
+            font-size: 24px;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+        }
+
+        /* --- 2. CALENDAR --- */
+        .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            text-align: center;
+            height: 100%;
+        }
+
+        .cal-head {
+            color: var(--c-cyan);
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .cal-cell {
+            background: rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: var(--c-text-muted);
+            border: 1px solid transparent;
+        }
+
+            .cal-cell.today {
+                border-color: var(--c-cyan);
+                color: #fff;
+                background: rgba(0,240,255,0.1);
+                font-weight: bold;
+                box-shadow: inset 0 0 10px rgba(0,240,255,0.2);
+            }
+
+            .cal-cell:empty {
+                background: transparent;
+            }
+
+        /* --- 3. STOCK SLIDER --- */
+        .stock-page-dots {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .s-dot {
+            width: 6px;
+            height: 6px;
+            background: #333;
+            border-radius: 50%;
+            transition: background 0.3s;
+        }
+
+            .s-dot.active {
+                background: var(--c-cyan);
+                box-shadow: 0 0 5px var(--c-cyan);
+            }
+
+        /* Stock Inner Layout */
+        .stock-val-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .m-price {
+            font-family: 'Orbitron';
+            font-size: 42px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .m-diff {
+            font-family: 'JetBrains Mono';
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .chart-box {
+            flex: 1;
+            width: 100%;
+            position: relative;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .chart-svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .chart-line {
+            fill: none;
+            stroke-width: 3;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 4px currentColor);
+        }
+
+        .chart-fill {
+            stroke: none;
+            opacity: 0.2;
+        }
+        /* Up/Down colors */
+        .up {
+            color: var(--c-cyan);
+        }
+
+            .up .chart-line {
+                stroke: var(--c-cyan);
+            }
+
+            .up .chart-fill {
+                fill: var(--c-cyan);
+            }
+
+        .down {
+            color: var(--c-pink);
+        }
+
+            .down .chart-line {
+                stroke: var(--c-pink);
+            }
+
+            .down .chart-fill {
+                fill: var(--c-pink);
+            }
+
+
+        /* --- FOOTER (News Log) --- */
+        .footer-log {
+            display: flex;
+            flex-direction: column;
+            padding: 10px 20px;
+        }
+
+        .log-header {
+            font-family: 'Orbitron';
+            font-size: 12px;
+            color: var(--c-cyan);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+            .log-header::after {
+                content: '';
+                height: 1px;
+                background: var(--c-cyan-dim);
+                flex: 1;
+            }
+
+        .news-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-auto-flow: dense;
+            gap: 5px 40px;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            overflow-y: hidden;
+        }
+
+        .news-item {
+            font-size: 13px;
+            color: var(--c-text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border-left: 2px solid transparent;
+            padding-left: 8px;
+            transition: all 0.3s;
+        }
+
+        .news-time {
+            color: var(--c-cyan);
+            font-size: 11px;
+            margin-right: 10px;
+            font-family: 'Orbitron';
+        }
+
+        .news-link {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        /* --- RESPONSIVE SCALING --- */
+        @media (max-width: 1300px), (max-height: 820px) {
+            #scaler {
+                transform: scale(min(calc(100vw / 1280), calc(100vh / 800)));
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="scaler">
+        <div class="cockpit corner-cut">
+
+            <header class="top-bar hud-panel">
+                <div class="sys-time">
+                    <div class="clock-main">
+                        <span id="time-hm">--:--</span>
+                        <span id="time-s" class="clock-sec">--</span>
+                    </div>
+                    <div id="date" class="clock-date">----.---.--</div>
+                </div>
+
+                <div class="sys-center" id="batt-sys">
+                    <div class="batt-label">SYS_POWER</div>
+                    <div class="batt-container">
+                        <div class="batt-icon"><div class="batt-fill" id="batt-bar"></div></div>
+                        <span id="batt-val">--%</span>
+                    </div>
+                </div>
+
+                <div class="sys-env">
+                    <div class="env-data">
+                        <div id="w-temp" class="env-temp">--°</div>
+                        <div id="w-desc" class="env-loc">SCANNING</div>
+                    </div>
+                    <div id="w-icon" class="env-icon"></div>
+                </div>
+            </header>
+
+            <section class="main-grid">
+
+                <div class="monitor-card hud-panel corner-cut" id="card-chrono">
+                    <div class="swipe-track" id="track-chrono">
+
+                        <div class="swipe-slide">
+                            <div class="card-inner-padding">
+                                <div class="m-header">
+                                    <span class="m-title">CHRONO</span>
+                                    <span class="m-code">STOPWATCH</span>
+                                </div>
+                                <div class="chrono-body">
+                                    <svg class="gauge-svg">
+                                        <circle class="gauge-bg" cx="110" cy="110" r="100"></circle>
+                                        <circle class="gauge-bar" id="sw-gauge" cx="110" cy="110" r="100"></circle>
+                                    </svg>
+                                    <div class="chrono-digital" id="sw-text">00:00.00</div>
+                                </div>
+                                <div class="chrono-ctrl">
+                                    <button class="c-btn" id="btn-sw-toggle">START</button>
+                                    <button class="c-btn" id="btn-sw-reset">RESET</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="swipe-slide">
+                            <div class="card-inner-padding">
+                                <div class="m-header">
+                                    <span class="m-title">TIMER</span>
+                                    <span class="m-code">COUNTDOWN</span>
+                                </div>
+                                <div class="chrono-body">
+                                    <svg class="gauge-svg">
+                                        <circle class="gauge-bg" cx="110" cy="110" r="100"></circle>
+                                        <circle class="gauge-bar" id="tm-gauge" cx="110" cy="110" r="100"></circle>
+                                    </svg>
+                                    <div class="chrono-digital" id="tm-text" onclick="timerApp.openSetup()">03:00</div>
+
+                                    <div class="timer-setup" id="tm-setup">
+                                        <div class="m-code" style="margin-bottom:10px;">SET TIMER</div>
+                                        <div class="ts-row">
+                                            <button class="ts-btn" onclick="timerApp.adjMin(1)">+</button>
+                                            <span id="ts-m">03</span>
+                                            <button class="ts-btn" onclick="timerApp.adjMin(-1)">-</button>
+                                        </div>
+                                        <div class="ts-row" style="font-size:20px; color:var(--c-cyan);">:</div>
+                                        <div class="ts-row">
+                                            <button class="ts-btn" onclick="timerApp.adjSec(10)">+</button>
+                                            <span id="ts-s">00</span>
+                                            <button class="ts-btn" onclick="timerApp.adjSec(-10)">-</button>
+                                        </div>
+                                        <button class="c-btn" style="margin-top:20px;" onclick="timerApp.closeSetup()">CONFIRM</button>
+                                    </div>
+
+                                </div>
+                                <div class="chrono-ctrl">
+                                    <button class="c-btn" id="btn-tm-toggle">START</button>
+                                    <button class="c-btn" id="btn-tm-reset">RESET</button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="monitor-card hud-panel corner-cut">
+                    <div class="card-inner-padding">
+                        <div class="m-header">
+                            <span class="m-title">CALENDAR</span>
+                            <span class="m-code" id="cal-month-label">YYYY.MM</span>
+                        </div>
+                        <div class="cal-grid" id="cal-grid">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="monitor-card hud-panel corner-cut" id="card-stock">
+                    <div class="swipe-track" id="track-stock">
+                    </div>
+                    <div class="stock-page-dots" id="stock-dots"></div>
+                </div>
+
+            </section>
+
+            <footer class="footer-log hud-panel corner-cut">
+                <div class="log-header">INCOMING TRANSMISSION // RSS_FEED</div>
+                <ul class="news-grid" id="news-list">
+                    <li>INITIALIZING DATA STREAM...</li>
+                </ul>
+            </footer>
+
+        </div>
+    </div>
+
+    <script>
+        // --- UTILS ---
+        const el = id => document.getElementById(id);
+        const pad = n => String(n).padStart(2, '0');
+
+        // --- 1. CLOCK & DATE ---
+        (function () {
+            function tick() {
+                const now = new Date();
+                el('date').textContent = `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())} :: ${['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][now.getDay()]}`;
+                el('time-hm').textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+                el('time-s').textContent = pad(now.getSeconds());
+                setTimeout(tick, 1000);
+            }
+            tick();
+        })();
+
+        // --- 2. BATTERY ---
+        (function () {
+            if ('getBattery' in navigator) {
+                navigator.getBattery().then(batt => {
+                    function update() {
+                        const level = Math.round(batt.level * 100);
+                        el('batt-val').textContent = `${level}%`;
+                        el('batt-bar').style.width = `${level}%`;
+                        const sys = el('batt-sys');
+                        if (batt.charging) {
+                            sys.classList.add('charging');
+                            el('batt-val').textContent = "CHARGING";
+                        } else {
+                            sys.classList.remove('charging');
+                        }
+                    }
+                    batt.addEventListener('levelchange', update);
+                    batt.addEventListener('chargingchange', update);
+                    update();
+                });
+            } else {
+                el('batt-val').textContent = "AC/EXT";
+                el('batt-bar').style.width = "100%";
+            }
+        })();
+
+        // --- 3. WEATHER ---
+        (function () {
+            // Use Matsusaka coords
+            const URL = 'https://api.open-meteo.com/v1/forecast?latitude=34.576&longitude=136.529&current=temperature_2m,weather_code&timezone=Asia%2FTokyo';
+            async function load() {
+                try {
+                    const r = await fetch(URL);
+                    const d = await r.json();
+                    const t = Math.round(d.current.temperature_2m);
+                    const c = d.current.weather_code;
+                    el('w-temp').textContent = `${t}°`;
+                    let txt = 'CLEAR';
+                    if (c > 0) txt = 'CLOUDY'; if (c > 50) txt = 'RAIN'; if (c > 70) txt = 'SNOW'; if (c > 95) txt = 'STORM';
+                    el('w-desc').textContent = `MATSUSAKA // ${txt}`;
+                    // Icons
+                    let path = '';
+                    if (c === 0) path = '<circle cx="24" cy="24" r="10" stroke-width="3"/><path d="M24 4v4M24 40v4M10 10l3 3M35 35l3 3M4 24h4M40 24h4M10 38l3-3M35 13l3-3" stroke-width="3"/>';
+                    else if (c < 50) path = '<path d="M14 36h20a10 10 0 000-20 12 12 0 00-22 4 8 8 0 002 16z" stroke-width="3"/>';
+                    else path = '<path d="M14 32h20a10 10 0 000-20 12 12 0 00-22 4 8 8 0 002 16z" stroke-width="3"/><path d="M18 40l-4 6M30 38l-4 6" stroke-width="3"/>';
+                    el('w-icon').innerHTML = `<svg viewBox="0 0 48 48">${path}</svg>`;
+                } catch (e) { }
+            }
+            load(); setInterval(load, 600000);
+        })();
+
+        // --- 4. CHRONO (SWIPE & LOGIC) ---
+        const timerApp = (function () {
+            // Swipe Logic
+            let page = 0; // 0: SW, 1: TM
+            const track = el('track-chrono');
+            let sx = 0;
+
+            el('card-chrono').addEventListener('touchstart', e => sx = e.touches[0].clientX);
+            el('card-chrono').addEventListener('touchend', e => {
+                const diff = e.changedTouches[0].clientX - sx;
+                if (Math.abs(diff) > 50) {
+                    if (diff < 0 && page === 0) page = 1;
+                    else if (diff > 0 && page === 1) page = 0;
+                    track.style.transform = `translateX(-${page * 100}%)`;
+                }
+            });
+
+            // Gauge Helper
+            const MAX_DASH = 628;
+            function setGauge(id, pct) {
+                // pct 0..100
+                const offset = MAX_DASH * (1 - (pct / 100));
+                el(id).style.strokeDashoffset = offset;
+            }
+
+            // Stopwatch Logic
+            let swT = 0, swInt = null, swStart = 0;
+            function updateSW() {
+                const now = Date.now();
+                const diff = swT + (now - swStart);
+                const min = Math.floor(diff / 60000);
+                const sec = Math.floor((diff % 60000) / 1000);
+                const ms = Math.floor((diff % 1000) / 10);
+                el('sw-text').textContent = `${pad(min)}:${pad(sec)}.${pad(ms)}`;
+                // Gauge loops every 60s
+                const loopPct = ((diff % 60000) / 60000) * 100;
+                setGauge('sw-gauge', loopPct);
+            }
+            el('btn-sw-toggle').onclick = function () {
+                if (swInt) { // Stop
+                    clearInterval(swInt); swInt = null; swT += Date.now() - swStart;
+                    this.textContent = "START";
+                } else { // Start
+                    swStart = Date.now();
+                    swInt = setInterval(updateSW, 30);
+                    this.textContent = "STOP";
+                }
+            };
+            el('btn-sw-reset').onclick = function () {
+                if (swInt) clearInterval(swInt);
+                swInt = null; swT = 0;
+                el('sw-text').textContent = "00:00.00";
+                setGauge('sw-gauge', 0);
+                el('btn-sw-toggle').textContent = "START";
+            };
+
+            // Timer Logic
+            let tmBase = 180; // seconds (3min default)
+            let tmRem = 180;
+            let tmInt = null;
+
+            function fmtTm(s) {
+                const m = Math.floor(s / 60);
+                const ss = s % 60;
+                return `${pad(m)}:${pad(ss)}`;
+            }
+            function updateTM() {
+                tmRem--;
+                if (tmRem <= 0) {
+                    tmRem = 0; clearInterval(tmInt); tmInt = null;
+                    el('btn-tm-toggle').textContent = "START";
+                    // Alarm effect could go here
+                }
+                el('tm-text').textContent = fmtTm(tmRem);
+                const pct = (tmRem / tmBase) * 100;
+                setGauge('tm-gauge', pct);
+            }
+
+            el('btn-tm-toggle').onclick = function () {
+                if (tmInt) { // Pause
+                    clearInterval(tmInt); tmInt = null;
+                    this.textContent = "RESUME";
+                } else {
+                    if (tmRem <= 0) tmRem = tmBase;
+                    tmInt = setInterval(updateTM, 1000);
+                    this.textContent = "PAUSE";
+                }
+            };
+            el('btn-tm-reset').onclick = function () {
+                if (tmInt) clearInterval(tmInt); tmInt = null;
+                tmRem = tmBase;
+                el('tm-text').textContent = fmtTm(tmBase);
+                setGauge('tm-gauge', 100);
+                el('btn-tm-toggle').textContent = "START";
+            };
+
+            // Timer Setup Logic
+            let setM = 3, setS = 0;
+            return {
+                openSetup: () => {
+                    if (tmInt) return; // Don't edit while running
+                    setM = Math.floor(tmBase / 60); setS = tmBase % 60;
+                    el('ts-m').textContent = pad(setM);
+                    el('ts-s').textContent = pad(setS);
+                    el('tm-setup').classList.add('active');
+                },
+                closeSetup: () => {
+                    tmBase = setM * 60 + setS;
+                    tmRem = tmBase;
+                    el('tm-text').textContent = fmtTm(tmBase);
+                    el('tm-setup').classList.remove('active');
+                },
+                adjMin: (d) => { setM = Math.max(0, Math.min(99, setM + d)); el('ts-m').textContent = pad(setM); },
+                adjSec: (d) => { setS = (setS + d + 60) % 60; el('ts-s').textContent = pad(setS); }
+            };
+        })();
+
+        // --- 5. CALENDAR ---
+        (function () {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = now.getMonth();
+            el('cal-month-label').textContent = `${y}.${pad(m + 1)}`;
+
+            const firstDay = new Date(y, m, 1).getDay();
+            const lastDate = new Date(y, m + 1, 0).getDate();
+
+            const grid = el('cal-grid');
+            // Headers
+            ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(d => {
+                const div = document.createElement('div');
+                div.className = 'cal-head'; div.textContent = d;
+                grid.appendChild(div);
+            });
+            // Empty slots
+            for (let i = 0; i < firstDay; i++) grid.appendChild(document.createElement('div'));
+            // Days
+            for (let d = 1; d <= lastDate; d++) {
+                const div = document.createElement('div');
+                div.className = 'cal-cell';
+                div.textContent = d;
+                if (d === now.getDate()) div.classList.add('today');
+                grid.appendChild(div);
+            }
+        })();
+
+        // --- 6. STOCK SLIDER ---
+        (function () {
+            const STOCKS = [
+                { sym: '9166.T', name: 'GENDA INC.' },
+                { sym: '7203.T', name: 'TOYOTA' },
+                { sym: '6758.T', name: 'SONY G.' }
+            ];
+            let page = 0;
+            const track = el('track-stock');
+            const dots = el('stock-dots');
+
+            // Build DOM
+            STOCKS.forEach((s, i) => {
+                // Slide
+                const slide = document.createElement('div');
+                slide.className = 'swipe-slide';
+                slide.innerHTML = `
+                <div class="card-inner-padding" id="stk-${i}">
+                    <div class="m-header">
+                        <span class="m-title">${s.name}</span>
+                        <span class="m-code">${s.sym}</span>
+                    </div>
+                    <div class="stock-val-row">
+                        <span class="m-price">--</span>
+                        <span class="m-diff">--</span>
+                    </div>
+                    <div class="chart-box" id="stk-c-${i}"></div>
+                </div>`;
+                track.appendChild(slide);
+
+                // Dot
+                const dot = document.createElement('div');
+                dot.className = i === 0 ? 's-dot active' : 's-dot';
+                dots.appendChild(dot);
+            });
+
+            // Swipe
+            let sx = 0;
+            el('card-stock').addEventListener('touchstart', e => sx = e.touches[0].clientX);
+            el('card-stock').addEventListener('touchend', e => {
+                const diff = e.changedTouches[0].clientX - sx;
+                if (Math.abs(diff) > 50) {
+                    if (diff < 0 && page < STOCKS.length - 1) page++;
+                    else if (diff > 0 && page > 0) page--;
+                    updateSlide();
+                }
+            });
+            function updateSlide() {
+                track.style.transform = `translateX(-${page * 100}%)`;
+                [...dots.children].forEach((d, i) => d.className = i === page ? 's-dot active' : 's-dot');
+            }
+
+            // Data Fetcher
+            const via = u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`;
+            async function fetchStock(s, i) {
+                try {
+                    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${s.sym}?interval=60m&range=5d`;
+                    const r = await fetch(via(url));
+                    const json = await r.json();
+                    const res = json.chart.result[0];
+                    const meta = res.meta;
+                    const prices = res.indicators.quote[0].close.filter(p => p != null);
+
+                    const price = meta.regularMarketPrice;
+                    const prev = meta.chartPreviousClose;
+                    const diff = price - prev;
+                    const pct = (diff / prev) * 100;
+                    const isUp = diff >= 0;
+
+                    const box = el(`stk-${i}`);
+                    box.classList.remove('up', 'down');
+                    box.classList.add(isUp ? 'up' : 'down');
+                    box.querySelector('.m-price').textContent = Math.round(price).toLocaleString();
+                    box.querySelector('.m-diff').textContent = `${isUp ? '+' : ''}${Math.round(diff)} (${pct.toFixed(1)}%)`;
+
+                    // Chart SVG
+                    const w = 300, h = 150;
+                    const min = Math.min(...prices), max = Math.max(...prices), rng = max - min || 1;
+                    const pts = prices.map((p, j) => {
+                        const x = (j / (prices.length - 1)) * w;
+                        const y = h - ((p - min) / rng) * (h - 10) - 5;
+                        return `${x},${y}`;
+                    });
+                    const dLine = `M ${pts.join(' L ')}`;
+                    const dFill = `${dLine} L ${w},${h} L 0,${h} Z`;
+                    el(`stk-c-${i}`).innerHTML = `<svg class="chart-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><path class="chart-fill" d="${dFill}"/><path class="chart-line" d="${dLine}"/></svg>`;
+
+                } catch (e) { console.log(e); }
+            }
+
+            STOCKS.forEach(fetchStock);
+            setInterval(() => STOCKS.forEach(fetchStock), 300000);
+        })();
+
+        // --- 7. NEWS ---
+        (function () {
+            const FEED = 'https://news.yahoo.co.jp/rss/topics/it.xml';
+            const via = u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`;
+            async function load() {
+                try {
+                    const r = await fetch(via(FEED));
+                    const txt = await r.text();
+                    const doc = new DOMParser().parseFromString(txt, 'text/xml');
+                    const items = [...doc.querySelectorAll('item')].slice(0, 8);
+                    const ul = el('news-list');
+                    ul.innerHTML = '';
+                    items.forEach(item => {
+                        const title = item.querySelector('title').textContent;
+                        const link = item.querySelector('link').textContent;
+                        const pub = new Date(item.querySelector('pubDate').textContent);
+                        const tStr = `${pad(pub.getHours())}:${pad(pub.getMinutes())}`;
+
+                        const li = document.createElement('li');
+                        li.className = 'news-item';
+                        li.innerHTML = `<span class="news-time">[${tStr}]</span><a class="news-link" href="${link}" target="_blank">${title}</a>`;
+                        ul.appendChild(li);
+                    });
+                } catch (e) { }
+            }
+            load(); setInterval(load, 600000);
+        })();
+    </script>
+</body>
+</html>
